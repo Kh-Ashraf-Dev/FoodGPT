@@ -5,13 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FavoritesManager {
   static const String _favoritesKey = 'favorite_meals';
 
-  // Save a meal to favorites
   static Future<bool> addToFavorites(Map<String, dynamic> meal) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final favorites = await getFavorites();
 
-      // Check if meal already exists
       final exists = favorites.any((fav) => fav['name'] == meal['name']);
       if (exists) return false;
 
@@ -24,7 +22,6 @@ class FavoritesManager {
     }
   }
 
-  // Remove a meal from favorites
   static Future<bool> removeFromFavorites(String mealName) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -39,7 +36,6 @@ class FavoritesManager {
     }
   }
 
-  // Get all favorites
   static Future<List<Map<String, dynamic>>> getFavorites() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -57,7 +53,6 @@ class FavoritesManager {
     }
   }
 
-  // Check if a meal is in favorites
   static Future<bool> isFavorite(String mealName) async {
     try {
       final favorites = await getFavorites();
@@ -68,7 +63,6 @@ class FavoritesManager {
     }
   }
 
-  // Clear all favorites
   static Future<bool> clearFavorites() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -79,7 +73,6 @@ class FavoritesManager {
     }
   }
 
-  // Get favorites count
   static Future<int> getFavoritesCount() async {
     final favorites = await getFavorites();
     return favorites.length;

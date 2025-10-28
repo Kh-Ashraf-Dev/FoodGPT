@@ -144,7 +144,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: SafeArea(
             child: Stack(
               children: [
-                // Floating sparkles
                 _buildFloatingSparkle(30, 100, 0),
                 _buildFloatingSparkle(
                   MediaQuery.of(context).size.width - 50,

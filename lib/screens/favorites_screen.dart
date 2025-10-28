@@ -152,7 +152,6 @@ class _FavoritesScreenState extends State<FavoritesScreen>
           child: SafeArea(
             child: Column(
               children: [
-                // Custom App Bar
                 FadeTransition(
                   opacity: _headerAnimation,
                   child: Container(

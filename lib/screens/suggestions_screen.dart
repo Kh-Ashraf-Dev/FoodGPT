@@ -42,7 +42,7 @@ class _SuggestionScreenState extends State<SuggestionScreen>
         widget.currentCategory ??
         categories[Random().nextInt(categories.length)];
     currentMeal = SuggestionData.getRandomMeal(currentCategory);
-    _checkIfFavorite(); // Add this line
+    _checkIfFavorite();
 
     _controller = AnimationController(
       vsync: this,
@@ -133,14 +133,12 @@ class _SuggestionScreenState extends State<SuggestionScreen>
   }
 
   void toggleFavorite() async {
-    // Add category to meal data
     final Map<String, dynamic> mealWithCategory = {
       ...currentMeal,
       'category': currentCategory,
     };
 
     if (_isFavorite) {
-      // Remove from favorites
       final removed = await FavoritesManager.removeFromFavorites(
         currentMeal["name"],
       );
@@ -176,7 +174,6 @@ class _SuggestionScreenState extends State<SuggestionScreen>
         }
       }
     } else {
-      // Add to favorites
       final added = await FavoritesManager.addToFavorites(mealWithCategory);
       if (added) {
         setState(() {
@@ -309,7 +306,6 @@ class _SuggestionScreenState extends State<SuggestionScreen>
           child: SafeArea(
             child: Stack(
               children: [
-                // Floating hearts
                 _buildFloatingHeart(30, 100, 0),
                 _buildFloatingHeart(
                   MediaQuery.of(context).size.width - 50,
