@@ -1,6 +1,7 @@
 import 'dart:math';
 
 class SuggestionData {
+  static final random = Random();
   static String getImageForCategory(String category) {
     switch (category) {
       case 'فطور':
@@ -10,7 +11,6 @@ class SuggestionData {
       case 'عشاء':
         return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80';
       case 'تحلية':
-      case 'حلويات':
         return 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80';
       case 'سناكس':
         return 'https://plus.unsplash.com/premium_photo-1679591002405-13fec066bd53?auto=format&fit=crop&q=60&w=600';
@@ -688,7 +688,10 @@ class SuggestionData {
     ],
   };
 
-  static Map<String, dynamic> getRandomMeal(String category) {
+  static Map<String, dynamic> getRandomMeal(
+    String category, {
+    String? excludeMealName,
+  }) {
     final meals = _categoryMeals[category];
     if (meals == null || meals.isEmpty) {
       return {
@@ -699,7 +702,41 @@ class SuggestionData {
         'steps': <String>[],
       };
     }
-    final random = Random();
+
+    // إذا كان عدد الوجبات 1 فقط، نرجع نفس الوجبة
+    if (meals.length == 1) {
+      final selectedMeal = meals[0];
+      return {
+        'name': selectedMeal['name'] ?? '',
+        'description': selectedMeal['description'] ?? '',
+        'image': getImageForCategory(category),
+        'ingredients': selectedMeal['ingredients'] ?? <String>[],
+        'steps': selectedMeal['steps'] ?? <String>[],
+      };
+    }
+
+    // إذا كان هناك وجبة نريد استثناءها
+    if (excludeMealName != null) {
+      // نحصل على قائمة الوجبات المتاحة (بدون الوجبة السابقة)
+      final availableMeals = meals
+          .where((meal) => meal['name'] != excludeMealName)
+          .toList();
+
+      // إذا كانت هناك وجبات متاحة، نختار عشوائياً
+      if (availableMeals.isNotEmpty) {
+        final selectedMeal =
+            availableMeals[random.nextInt(availableMeals.length)];
+        return {
+          'name': selectedMeal['name'] ?? '',
+          'description': selectedMeal['description'] ?? '',
+          'image': getImageForCategory(category),
+          'ingredients': selectedMeal['ingredients'] ?? <String>[],
+          'steps': selectedMeal['steps'] ?? <String>[],
+        };
+      }
+    }
+
+    // في الحالة العادية، نختار وجبة عشوائية
     final selectedMeal = meals[random.nextInt(meals.length)];
     return {
       'name': selectedMeal['name'] ?? '',

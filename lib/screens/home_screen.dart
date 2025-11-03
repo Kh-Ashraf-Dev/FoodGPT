@@ -19,11 +19,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
 
   late AnimationController _controller;
-  late AnimationController _sparkleController;
+  late AnimationController _particlesController;
   late AnimationController _headerController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _sparkleAnimation;
 
   @override
   void initState() {
@@ -34,14 +33,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1200),
     );
 
-    _sparkleController = AnimationController(
+    _particlesController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 4000),
     )..repeat();
 
     _headerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
 
     _fadeAnimation = CurvedAnimation(
@@ -54,10 +53,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       end: 1,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
 
-    _sparkleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _sparkleController, curve: Curves.easeInOut),
-    );
-
     Future.delayed(const Duration(milliseconds: 200), () {
       _controller.forward();
     });
@@ -66,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _controller.dispose();
-    _sparkleController.dispose();
+    _particlesController.dispose();
     _headerController.dispose();
     super.dispose();
   }
@@ -115,19 +110,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFloatingSparkle(double left, double top, double delay) {
+  Widget _buildFloatingParticle(
+    double left,
+    double top,
+    double delay,
+    Color color,
+  ) {
     return AnimatedBuilder(
-      animation: _sparkleAnimation,
+      animation: _particlesController,
       builder: (context, child) {
-        final offset = sin((_sparkleAnimation.value + delay) * 2 * pi) * 10;
+        final offset = sin((_particlesController.value + delay) * 2 * pi) * 20;
         final opacity =
-            (sin((_sparkleAnimation.value + delay) * 2 * pi) + 1) / 2;
+            (sin((_particlesController.value + delay) * 2 * pi) + 1) / 2;
         return Positioned(
           left: left,
           top: top + offset,
           child: Opacity(
-            opacity: opacity * 0.6,
-            child: Icon(Icons.star, color: Colors.pink.shade200, size: 16),
+            opacity: opacity * 0.25,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: color.withOpacity(0.5), blurRadius: 10),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -136,25 +146,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: Container(
-          color: Colors.white,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF1a1a2e),
+                const Color(0xFF16213e),
+                const Color(0xFF0f3460),
+              ],
+            ),
+          ),
           child: SafeArea(
             child: Stack(
               children: [
-                _buildFloatingSparkle(30, 100, 0),
-                _buildFloatingSparkle(
-                  MediaQuery.of(context).size.width - 50,
-                  150,
-                  0.3,
+                // Floating particles
+                _buildFloatingParticle(50, 120, 0, Colors.pink.shade300),
+                _buildFloatingParticle(
+                  screenWidth - 70,
+                  180,
+                  0.2,
+                  Colors.orange.shade300,
                 ),
-                _buildFloatingSparkle(60, 300, 0.6),
-                _buildFloatingSparkle(
-                  MediaQuery.of(context).size.width - 80,
-                  400,
-                  0.9,
+                _buildFloatingParticle(60, 320, 0.4, Colors.purple.shade300),
+                _buildFloatingParticle(
+                  screenWidth - 80,
+                  420,
+                  0.6,
+                  Colors.amber.shade300,
+                ),
+                _buildFloatingParticle(70, 550, 0.8, Colors.teal.shade300),
+                _buildFloatingParticle(
+                  screenWidth - 60,
+                  680,
+                  0.3,
+                  Colors.pink.shade400,
                 ),
 
                 Column(
@@ -163,90 +195,91 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 24,
+                          horizontal: 20,
+                        ),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.pinkAccent.shade100,
-                              Colors.purpleAccent.shade100,
-                            ],
-                          ),
-                          borderRadius: const BorderRadius.only(
-                            bottomLeft: Radius.circular(30),
-                            bottomRight: Radius.circular(30),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.pink.withOpacity(0.3),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
+                          color: Colors.white.withOpacity(0.05),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1,
                             ),
-                          ],
+                          ),
                         ),
                         child: Column(
                           children: [
-                            AnimatedBuilder(
-                              animation: _headerController,
-                              builder: (context, child) {
-                                return Transform.scale(
-                                  scale:
-                                      1 +
-                                      (sin(_headerController.value * 2 * pi) *
-                                          0.05),
-                                  child: child,
-                                );
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.restaurant_menu,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Text(
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                AnimatedBuilder(
+                                  animation: _headerController,
+                                  builder: (context, child) {
+                                    return Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.pink.shade400.withOpacity(
+                                              0.3,
+                                            ),
+                                            Colors.orange.shade400.withOpacity(
+                                              0.3,
+                                            ),
+                                          ],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.pink.withOpacity(
+                                              0.2 +
+                                                  _headerController.value * 0.2,
+                                            ),
+                                            blurRadius:
+                                                15 +
+                                                _headerController.value * 10,
+                                            spreadRadius: 2,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.restaurant_menu,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 14),
+                                ShaderMask(
+                                  shaderCallback: (bounds) => LinearGradient(
+                                    colors: [
+                                      Colors.pink.shade300,
+                                      Colors.orange.shade300,
+                                      Colors.purple.shade300,
+                                    ],
+                                  ).createShader(bounds),
+                                  child: const Text(
                                     'FoodGPT',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white,
-                                      fontSize: 24,
-                                      letterSpacing: 1.5,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black26,
-                                          offset: Offset(0, 2),
-                                          blurRadius: 4,
-                                        ),
-                                      ],
+                                      fontSize: 28,
+                                      letterSpacing: 2,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Icon(
-                                    Icons.favorite,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedBuilder(
-                              animation: _sparkleAnimation,
-                              builder: (context, child) {
-                                return Opacity(
-                                  opacity:
-                                      0.7 + (_sparkleAnimation.value * 0.3),
-                                  child: child,
-                                );
-                              },
-                              child: const Text(
-                                '✨ اختاري وجبتك المفضلة ✨',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'اكتشف وصفات مصرية أصيلة',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],
@@ -282,98 +315,148 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         bottomNavigationBar: Container(
-          decoration: BoxDecoration(boxShadow: [
-              
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(25),
-              topRight: Radius.circular(25),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1a1a2e),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
             ),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-
-                if (index == 1) {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) => SuggestionScreen(),
-                      transitionDuration: const Duration(milliseconds: 600),
-                      transitionsBuilder: (_, animation, __, child) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(
-                            scale: Tween<double>(begin: 0.8, end: 1.0).animate(
-                              CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeOutBack,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildNavItem(
+                    icon: Icons.home_rounded,
+                    label: 'الرئيسية',
+                    isSelected: _currentIndex == 0,
+                    onTap: () => setState(() => _currentIndex = 0),
+                  ),
+                  _buildNavItem(
+                    icon: Icons.lightbulb_rounded,
+                    label: 'اقتراح',
+                    isSelected: _currentIndex == 1,
+                    onTap: () {
+                      setState(() => _currentIndex = 1);
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (_, __, ___) => const SuggestionScreen(),
+                          transitionDuration: const Duration(milliseconds: 600),
+                          transitionsBuilder: (_, animation, __, child) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: ScaleTransition(
+                                scale: Tween<double>(begin: 0.8, end: 1.0)
+                                    .animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutBack,
+                                      ),
+                                    ),
+                                child: child,
                               ),
-                            ),
-                            child: child,
-                          ),
-                        );
-                      },
-                    ),
-                  ).then((_) => setState(() => _currentIndex = 0));
-                } else if (index == 2) {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) => const FavoritesScreen(),
-                      transitionDuration: const Duration(milliseconds: 600),
-                      transitionsBuilder: (_, animation, __, child) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position:
-                                Tween<Offset>(
-                                  begin: const Offset(0, 0.3),
-                                  end: Offset.zero,
-                                ).animate(
-                                  CurvedAnimation(
-                                    parent: animation,
-                                    curve: Curves.easeOutCubic,
-                                  ),
-                                ),
-                            child: child,
-                          ),
-                        );
-                      },
-                    ),
-                  ).then((_) => setState(() => _currentIndex = 0));
-                }
-              },
-              backgroundColor: Colors.white,
-              selectedItemColor: Colors.pinkAccent,
-              unselectedItemColor: Colors.grey.shade400,
-              selectedFontSize: 13,
-              unselectedFontSize: 11,
-              type: BottomNavigationBarType.fixed,
-              elevation: 0,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.home_rounded),
-                  activeIcon: Icon(Icons.home),
-                  label: 'الرئيسية',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.lightbulb_outline_rounded),
-                  activeIcon: Icon(Icons.lightbulb),
-                  label: 'اقتراح وجبة',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.favorite_border_rounded),
-                  activeIcon: Icon(Icons.favorite),
-                  label: 'المفضلة',
-                ),
-              ],
+                            );
+                          },
+                        ),
+                      ).then((_) => setState(() => _currentIndex = 0));
+                    },
+                  ),
+                  _buildNavItem(
+                    icon: Icons.favorite_rounded,
+                    label: 'المفضلة',
+                    isSelected: _currentIndex == 2,
+                    onTap: () {
+                      setState(() => _currentIndex = 2);
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (_, __, ___) => const FavoritesScreen(),
+                          transitionDuration: const Duration(milliseconds: 600),
+                          transitionsBuilder: (_, animation, __, child) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position:
+                                    Tween<Offset>(
+                                      begin: const Offset(0, 0.3),
+                                      end: Offset.zero,
+                                    ).animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutCubic,
+                                      ),
+                                    ),
+                                child: child,
+                              ),
+                            );
+                          },
+                        ),
+                      ).then((_) => setState(() => _currentIndex = 0));
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 20 : 16,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [Colors.pink.shade400, Colors.orange.shade400],
+                )
+              : null,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.pink.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+              size: 24,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

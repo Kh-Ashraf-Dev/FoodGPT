@@ -22,6 +22,7 @@ class _SuggestionScreenState extends State<SuggestionScreen>
   late AnimationController _heartController;
   late AnimationController _floatingController;
   late AnimationController _descriptionController;
+  late AnimationController _swipeController;
 
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -29,10 +30,15 @@ class _SuggestionScreenState extends State<SuggestionScreen>
   late Animation<double> _sparkleAnimation;
   late Animation<double> _heartBeatAnimation;
   late Animation<double> _descriptionSlideAnimation;
+  late Animation<Offset> _swipeAnimation;
 
   final categories = const ['فطور', 'غداء', 'عشاء', 'تحلية', 'سناكس', 'صحي'];
   String currentCategory = '';
   bool _isFavorite = false;
+
+  // Swipe variables
+  double _dragDistance = 0;
+  bool _isSwipeInProgress = false;
 
   @override
   void initState() {
@@ -41,12 +47,14 @@ class _SuggestionScreenState extends State<SuggestionScreen>
     currentCategory =
         widget.currentCategory ??
         categories[Random().nextInt(categories.length)];
-    currentMeal = SuggestionData.getRandomMeal(currentCategory);
+    currentMeal = SuggestionData.getRandomMeal(
+      currentCategory,
+    ); // أول وجبة بدون استثناء
     _checkIfFavorite();
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 400), // كان 800
     );
 
     _sparkleController = AnimationController(
@@ -56,19 +64,24 @@ class _SuggestionScreenState extends State<SuggestionScreen>
 
     _descriptionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300), // كان 600
     );
     _descriptionController.forward();
 
     _heartController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200), // كان 300
     );
 
     _floatingController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
     )..repeat(reverse: true);
+
+    _swipeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250), // كان 400
+    );
 
     _fadeAnimation = CurvedAnimation(
       parent: _controller,
@@ -101,6 +114,11 @@ class _SuggestionScreenState extends State<SuggestionScreen>
       ),
     );
 
+    _swipeAnimation =
+        Tween<Offset>(begin: Offset.zero, end: const Offset(2.0, 0)).animate(
+          CurvedAnimation(parent: _swipeController, curve: Curves.easeInOut),
+        );
+
     _controller.forward();
   }
 
@@ -113,19 +131,106 @@ class _SuggestionScreenState extends State<SuggestionScreen>
     }
   }
 
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_isSwipeInProgress) {
+      setState(() {
+        _dragDistance += details.primaryDelta ?? 0;
+      });
+    }
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (_isSwipeInProgress) return;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final threshold = screenWidth * 0.3;
+
+    if (_dragDistance.abs() > threshold) {
+      _performSwipeAnimation();
+    } else {
+      setState(() {
+        _dragDistance = 0;
+      });
+    }
+  }
+
+  void _performSwipeAnimation() {
+    setState(() {
+      _isSwipeInProgress = true;
+    });
+
+    final direction = _dragDistance < 0 ? -1.0 : 1.0;
+
+    _swipeController.reset();
+    _swipeAnimation =
+        Tween<Offset>(
+          begin: Offset(_dragDistance / MediaQuery.of(context).size.width, 0),
+          end: Offset(2.0 * direction, 0),
+        ).animate(
+          CurvedAnimation(parent: _swipeController, curve: Curves.easeInOut),
+        );
+
+    _swipeController.forward().then((_) {
+      _descriptionController.reverse().then((_) {
+        setState(() {
+          currentCategory =
+              widget.currentCategory ??
+              categories[Random().nextInt(categories.length)];
+          currentMeal = SuggestionData.getRandomMeal(
+            currentCategory,
+            excludeMealName: currentMeal["name"],
+          );
+          _isFavorite = false;
+          _dragDistance = 0;
+        });
+        _checkIfFavorite();
+
+        // Reset swipe animation from opposite side
+        _swipeAnimation =
+            Tween<Offset>(
+              begin: Offset(-2.0 * direction, 0),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: _swipeController,
+                curve: Curves.easeOutCubic,
+              ),
+            );
+
+        _swipeController.reset();
+        _swipeController.forward().then((_) {
+          setState(() {
+            _isSwipeInProgress = false;
+          });
+        });
+
+        Future.delayed(const Duration(milliseconds: 100), () {
+          // كان 200
+          _descriptionController.forward();
+        });
+      });
+    });
+  }
+
   void suggestAgain() {
+    if (_isSwipeInProgress) return;
+
     _controller.reverse().then((_) {
       _descriptionController.reverse().then((_) {
         setState(() {
           currentCategory =
               widget.currentCategory ??
               categories[Random().nextInt(categories.length)];
-          currentMeal = SuggestionData.getRandomMeal(currentCategory);
+          currentMeal = SuggestionData.getRandomMeal(
+            currentCategory,
+            excludeMealName: currentMeal["name"],
+          );
           _isFavorite = false;
         });
-        _checkIfFavorite(); // Add this line
+        _checkIfFavorite();
         _controller.forward();
-        Future.delayed(const Duration(milliseconds: 400), () {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          // كان 400
           _descriptionController.forward();
         });
       });
@@ -282,6 +387,8 @@ class _SuggestionScreenState extends State<SuggestionScreen>
     _sparkleController.dispose();
     _heartController.dispose();
     _floatingController.dispose();
+    _descriptionController.dispose();
+    _swipeController.dispose();
     super.dispose();
   }
 
@@ -408,8 +515,35 @@ class _SuggestionScreenState extends State<SuggestionScreen>
                               ),
                             ),
                           ),
-                          const SizedBox(width: 48), // Balance the back button
+                          const SizedBox(width: 48),
                         ],
+                      ),
+                    ),
+
+                    // Swipe hint text
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Opacity(
+                        opacity: 0.6,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.swipe,
+                              size: 18,
+                              color: getCategoryColor(),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'اسحب يميناً أو يساراً لوجبة جديدة',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: getCategoryColor(),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
@@ -417,568 +551,399 @@ class _SuggestionScreenState extends State<SuggestionScreen>
                     Expanded(
                       child: Center(
                         child: SingleChildScrollView(
-                          child: AnimatedBuilder(
-                            animation: _slideAnimation,
-                            builder: (context, child) {
-                              return Transform.translate(
-                                offset: Offset(0, _slideAnimation.value),
-                                child: child,
-                              );
-                            },
-                            child: FadeTransition(
-                              opacity: _fadeAnimation,
-                              child: ScaleTransition(
-                                scale: _scaleAnimation,
-                                child: Container(
-                                  margin: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(35),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        Colors.white,
-                                        getCategoryColor().withOpacity(0.05),
+                          child: GestureDetector(
+                            onHorizontalDragUpdate: _onHorizontalDragUpdate,
+                            onHorizontalDragEnd: _onHorizontalDragEnd,
+                            child: AnimatedBuilder(
+                              animation: _isSwipeInProgress
+                                  ? _swipeAnimation
+                                  : _slideAnimation,
+                              builder: (context, child) {
+                                return Transform.translate(
+                                  offset: _isSwipeInProgress
+                                      ? Offset(
+                                          _swipeAnimation.value.dx *
+                                              MediaQuery.of(context).size.width,
+                                          0,
+                                        )
+                                      : Offset(
+                                          _dragDistance,
+                                          _slideAnimation.value,
+                                        ),
+                                  child: Transform.rotate(
+                                    angle: _isSwipeInProgress
+                                        ? _swipeAnimation.value.dx * 0.2
+                                        : (_dragDistance /
+                                                  MediaQuery.of(
+                                                    context,
+                                                  ).size.width) *
+                                              0.2,
+                                    child: Opacity(
+                                      opacity: _isSwipeInProgress
+                                          ? 1.0 -
+                                                _swipeAnimation.value.dx.abs() *
+                                                    0.5
+                                          : 1.0 -
+                                                (_dragDistance.abs() /
+                                                        MediaQuery.of(
+                                                          context,
+                                                        ).size.width) *
+                                                    0.3,
+                                      child: child,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: ScaleTransition(
+                                  scale: _scaleAnimation,
+                                  child: Container(
+                                    margin: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(35),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.white,
+                                          getCategoryColor().withOpacity(0.05),
+                                        ],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: getCategoryColor().withOpacity(
+                                            0.3,
+                                          ),
+                                          blurRadius: 30,
+                                          offset: const Offset(0, 15),
+                                          spreadRadius: 5,
+                                        ),
+                                        BoxShadow(
+                                          color: Colors.white,
+                                          blurRadius: 15,
+                                          offset: const Offset(-5, -5),
+                                        ),
                                       ],
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: getCategoryColor().withOpacity(
-                                          0.3,
-                                        ),
-                                        blurRadius: 30,
-                                        offset: const Offset(0, 15),
-                                        spreadRadius: 5,
-                                      ),
-                                      BoxShadow(
-                                        color: Colors.white,
-                                        blurRadius: 15,
-                                        offset: const Offset(-5, -5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(35),
-                                    child: Stack(
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.all(25),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // Category Badge
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 8,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(35),
+                                      child: Stack(
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.all(25),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Category Badge
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 20,
+                                                        vertical: 8,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      colors: [
+                                                        getCategoryColor(),
+                                                        getCategoryColor()
+                                                            .withOpacity(0.7),
+                                                      ],
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    colors: [
-                                                      getCategoryColor(),
-                                                      getCategoryColor()
-                                                          .withOpacity(0.7),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color:
+                                                            getCategoryColor()
+                                                                .withOpacity(
+                                                                  0.3,
+                                                                ),
+                                                        blurRadius: 8,
+                                                        offset: const Offset(
+                                                          0,
+                                                          4,
+                                                        ),
+                                                      ),
                                                     ],
                                                   ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: getCategoryColor()
-                                                          .withOpacity(0.3),
-                                                      blurRadius: 8,
-                                                      offset: const Offset(
-                                                        0,
-                                                        4,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      getCategoryIcon(),
-                                                      color: Colors.white,
-                                                      size: 18,
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      currentCategory,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-
-                                              const SizedBox(height: 20),
-
-                                              // Meal Name
-                                              Text(
-                                                currentMeal["name"],
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontSize: 28,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: getCategoryColor(),
-                                                  height: 1.3,
-                                                ),
-                                              ),
-
-                                              const SizedBox(height: 20),
-
-                                              // Image Container
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(25),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: getCategoryColor()
-                                                          .withOpacity(0.3),
-                                                      blurRadius: 20,
-                                                      offset: const Offset(
-                                                        0,
-                                                        10,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(25),
-                                                  child: Stack(
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     children: [
-                                                      Image.network(
-                                                        currentMeal["image"] ??
-                                                            'https://media.istockphoto.com/id/1208512719/vector/mother-and-kid-girl-preparing-healthy-food-at-home-together-best-mom-ever-mother-and.jpg?s=612x612&w=0&k=20&c=NT_rtgElOHYlbXAzrHdxlClYmtCby8BD9QQLEstZ-j8=',
-                                                        height: 240,
-                                                        width: double.infinity,
-                                                        fit: BoxFit.cover,
-                                                        loadingBuilder:
-                                                            (
-                                                              context,
-                                                              child,
-                                                              loadingProgress,
-                                                            ) {
-                                                              if (loadingProgress ==
-                                                                  null)
-                                                                return child;
-                                                              return Container(
-                                                                height: 240,
-                                                                decoration: BoxDecoration(
-                                                                  gradient: LinearGradient(
-                                                                    colors: [
-                                                                      getCategoryColor()
-                                                                          .withOpacity(
-                                                                            0.2,
-                                                                          ),
-                                                                      getCategoryColor()
-                                                                          .withOpacity(
-                                                                            0.1,
-                                                                          ),
-                                                                    ],
-                                                                  ),
-                                                                ),
-                                                                child: Center(
-                                                                  child: CircularProgressIndicator(
-                                                                    color:
-                                                                        getCategoryColor(),
-                                                                    strokeWidth:
-                                                                        3,
-                                                                  ),
-                                                                ),
-                                                              );
-                                                            },
-                                                        errorBuilder:
-                                                            (
-                                                              context,
-                                                              error,
-                                                              stackTrace,
-                                                            ) => Container(
-                                                              height: 240,
-                                                              color: Colors
-                                                                  .grey[300],
-                                                              child: Icon(
-                                                                Icons
-                                                                    .restaurant_rounded,
-                                                                color:
-                                                                    Colors.grey,
-                                                                size: 80,
-                                                              ),
-                                                            ),
+                                                      Icon(
+                                                        getCategoryIcon(),
+                                                        color: Colors.white,
+                                                        size: 18,
                                                       ),
-                                                      // Gradient overlay
-                                                      Container(
-                                                        height: 240,
-                                                        decoration: BoxDecoration(
-                                                          gradient: LinearGradient(
-                                                            begin: Alignment
-                                                                .topCenter,
-                                                            end: Alignment
-                                                                .bottomCenter,
-                                                            colors: [
-                                                              Colors
-                                                                  .transparent,
-                                                              getCategoryColor()
-                                                                  .withOpacity(
-                                                                    0.1,
-                                                                  ),
-                                                            ],
-                                                          ),
+                                                      const SizedBox(width: 6),
+                                                      Text(
+                                                        currentCategory,
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 14,
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
-                                              ),
 
-                                              const SizedBox(height: 20),
+                                                const SizedBox(height: 20),
 
-                                              // Description Section
-                                              AnimatedBuilder(
-                                                animation:
-                                                    _descriptionSlideAnimation,
-                                                builder: (context, child) {
-                                                  return Transform.translate(
-                                                    offset: Offset(
-                                                      0,
-                                                      _descriptionSlideAnimation
-                                                          .value,
-                                                    ),
-                                                    child: FadeTransition(
-                                                      opacity:
-                                                          _descriptionController,
-                                                      child: child,
-                                                    ),
-                                                  );
-                                                },
-                                                child: Column(
-                                                  children: [
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            16,
-                                                          ),
-                                                      decoration: BoxDecoration(
+                                                // Meal Name
+                                                Text(
+                                                  currentMeal["name"],
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontSize: 28,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: getCategoryColor(),
+                                                    height: 1.3,
+                                                  ),
+                                                ),
+
+                                                const SizedBox(height: 20),
+
+                                                // Image Container
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          25,
+                                                        ),
+                                                    boxShadow: [
+                                                      BoxShadow(
                                                         color:
                                                             getCategoryColor()
                                                                 .withOpacity(
-                                                                  0.08,
+                                                                  0.3,
                                                                 ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              20,
+                                                        blurRadius: 20,
+                                                        offset: const Offset(
+                                                          0,
+                                                          10,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          25,
+                                                        ),
+                                                    child: Stack(
+                                                      children: [
+                                                        Image.network(
+                                                          currentMeal["image"] ??
+                                                              'https://media.istockphoto.com/id/1208512719/vector/mother-and-kid-girl-preparing-healthy-food-at-home-together-best-mom-ever-mother-and.jpg?s=612x612&w=0&k=20&c=NT_rtgElOHYlbXAzrHdxlClYmtCby8BD9QQLEstZ-j8=',
+                                                          height: 240,
+                                                          width:
+                                                              double.infinity,
+                                                          fit: BoxFit.cover,
+                                                          loadingBuilder:
+                                                              (
+                                                                context,
+                                                                child,
+                                                                loadingProgress,
+                                                              ) {
+                                                                if (loadingProgress ==
+                                                                    null)
+                                                                  return child;
+                                                                return Container(
+                                                                  height: 240,
+                                                                  decoration: BoxDecoration(
+                                                                    gradient: LinearGradient(
+                                                                      colors: [
+                                                                        getCategoryColor()
+                                                                            .withOpacity(
+                                                                              0.2,
+                                                                            ),
+                                                                        getCategoryColor()
+                                                                            .withOpacity(
+                                                                              0.1,
+                                                                            ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                  child: Center(
+                                                                    child: CircularProgressIndicator(
+                                                                      color:
+                                                                          getCategoryColor(),
+                                                                      strokeWidth:
+                                                                          3,
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
+                                                          errorBuilder:
+                                                              (
+                                                                context,
+                                                                error,
+                                                                stackTrace,
+                                                              ) => Container(
+                                                                height: 240,
+                                                                color: Colors
+                                                                    .grey[300],
+                                                                child: Icon(
+                                                                  Icons
+                                                                      .restaurant_rounded,
+                                                                  color: Colors
+                                                                      .grey,
+                                                                  size: 80,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                        // Gradient overlay
+                                                        Container(
+                                                          height: 240,
+                                                          decoration: BoxDecoration(
+                                                            gradient: LinearGradient(
+                                                              begin: Alignment
+                                                                  .topCenter,
+                                                              end: Alignment
+                                                                  .bottomCenter,
+                                                              colors: [
+                                                                Colors
+                                                                    .transparent,
+                                                                getCategoryColor()
+                                                                    .withOpacity(
+                                                                      0.1,
+                                                                    ),
+                                                              ],
                                                             ),
-                                                        border: Border.all(
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                const SizedBox(height: 20),
+
+                                                // Description Section
+                                                AnimatedBuilder(
+                                                  animation:
+                                                      _descriptionSlideAnimation,
+                                                  builder: (context, child) {
+                                                    return Transform.translate(
+                                                      offset: Offset(
+                                                        0,
+                                                        _descriptionSlideAnimation
+                                                            .value,
+                                                      ),
+                                                      child: FadeTransition(
+                                                        opacity:
+                                                            _descriptionController,
+                                                        child: child,
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: Column(
+                                                    children: [
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              16,
+                                                            ),
+                                                        decoration: BoxDecoration(
                                                           color:
                                                               getCategoryColor()
                                                                   .withOpacity(
-                                                                    0.2,
+                                                                    0.08,
                                                                   ),
-                                                          width: 1.5,
-                                                        ),
-                                                      ),
-                                                      child: Column(
-                                                        children: [
-                                                          Row(
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children: [
-                                                              Icon(
-                                                                Icons
-                                                                    .restaurant,
-                                                                color:
-                                                                    getCategoryColor(),
-                                                                size: 20,
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                'نبذة عن الوصفة',
-                                                                style: TextStyle(
-                                                                  fontSize: 16,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                  color:
-                                                                      getCategoryColor(),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                          const SizedBox(
-                                                            height: 10,
-                                                          ),
-                                                          Text(
-                                                            currentMeal["description"] ??
-                                                                '',
-                                                            textAlign: TextAlign
-                                                                .center,
-                                                            style: TextStyle(
-                                                              fontSize: 14,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade700,
-                                                              height: 1.6,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 12),
-                                                    // Detailed Recipe Button
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          colors: [
-                                                            getCategoryColor(),
-                                                            getCategoryColor()
-                                                                .withOpacity(
-                                                                  0.8,
-                                                                ),
-                                                          ],
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              20,
-                                                            ),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color:
-                                                                getCategoryColor()
-                                                                    .withOpacity(
-                                                                      0.3,
-                                                                    ),
-                                                            blurRadius: 10,
-                                                            offset:
-                                                                const Offset(
-                                                                  0,
-                                                                  5,
-                                                                ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      child: Material(
-                                                        color:
-                                                            Colors.transparent,
-                                                        child: InkWell(
-                                                          onTap: () {
-                                                            Navigator.push(
-                                                              context,
-                                                              MaterialPageRoute(
-                                                                builder: (context) => RecipeDetailScreen(
-                                                                  meal:
-                                                                      currentMeal,
-                                                                  categoryColor:
-                                                                      getCategoryColor(),
-                                                                  categoryIcon:
-                                                                      getCategoryIcon(),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
                                                           borderRadius:
                                                               BorderRadius.circular(
                                                                 20,
                                                               ),
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  vertical: 14,
-                                                                  horizontal:
-                                                                      20,
-                                                                ),
-                                                            child: Row(
-                                                              mainAxisAlignment:
-                                                                  MainAxisAlignment
-                                                                      .center,
-                                                              children: const [
-                                                                Icon(
-                                                                  Icons
-                                                                      .menu_book_rounded,
-                                                                  color: Colors
-                                                                      .white,
-                                                                  size: 22,
-                                                                ),
-                                                                SizedBox(
-                                                                  width: 10,
-                                                                ),
-                                                                Text(
-                                                                  'طريقة التحضير بالتفصيل',
-                                                                  style: TextStyle(
-                                                                    color: Colors
-                                                                        .white,
-                                                                    fontSize:
-                                                                        15,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold,
-                                                                  ),
-                                                                ),
-                                                                SizedBox(
-                                                                  width: 8,
-                                                                ),
-                                                                Icon(
-                                                                  Icons
-                                                                      .arrow_back_rounded,
-                                                                  color: Colors
-                                                                      .white,
-                                                                  size: 20,
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 25),
-                                              // Buttons
-                                              Row(
-                                                children: [
-                                                  // Refresh Button
-                                                  Expanded(
-                                                    child: Container(
-                                                      decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          colors: [
-                                                            getCategoryColor(),
-                                                            getCategoryColor()
-                                                                .withOpacity(
-                                                                  0.7,
-                                                                ),
-                                                          ],
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              25,
-                                                            ),
-                                                        boxShadow: [
-                                                          BoxShadow(
+                                                          border: Border.all(
                                                             color:
                                                                 getCategoryColor()
                                                                     .withOpacity(
-                                                                      0.4,
+                                                                      0.2,
                                                                     ),
-                                                            blurRadius: 10,
-                                                            offset:
-                                                                const Offset(
-                                                                  0,
-                                                                  5,
-                                                                ),
+                                                            width: 1.5,
                                                           ),
-                                                        ],
-                                                      ),
-                                                      child: Material(
-                                                        color:
-                                                            Colors.transparent,
-                                                        child: InkWell(
-                                                          onTap: suggestAgain,
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                25,
-                                                              ),
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  vertical: 14,
-                                                                  horizontal:
-                                                                      16,
-                                                                ),
-                                                            child: Row(
+                                                        ),
+                                                        child: Column(
+                                                          children: [
+                                                            Row(
                                                               mainAxisAlignment:
                                                                   MainAxisAlignment
                                                                       .center,
-                                                              children: const [
+                                                              children: [
                                                                 Icon(
                                                                   Icons
-                                                                      .refresh_rounded,
-                                                                  color: Colors
-                                                                      .white,
-                                                                  size: 22,
+                                                                      .restaurant,
+                                                                  color:
+                                                                      getCategoryColor(),
+                                                                  size: 20,
                                                                 ),
-                                                                SizedBox(
+                                                                const SizedBox(
                                                                   width: 8,
                                                                 ),
                                                                 Text(
-                                                                  'وجبة أخرى',
+                                                                  'نبذة عن الوصفة',
                                                                   style: TextStyle(
-                                                                    color: Colors
-                                                                        .white,
                                                                     fontSize:
-                                                                        15,
+                                                                        16,
                                                                     fontWeight:
                                                                         FontWeight
                                                                             .bold,
+                                                                    color:
+                                                                        getCategoryColor(),
                                                                   ),
                                                                 ),
                                                               ],
                                                             ),
-                                                          ),
+                                                            const SizedBox(
+                                                              height: 10,
+                                                            ),
+                                                            Text(
+                                                              currentMeal["description"] ??
+                                                                  '',
+                                                              textAlign:
+                                                                  TextAlign
+                                                                      .center,
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade700,
+                                                                height: 1.6,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
-                                                    ),
-                                                  ),
-
-                                                  const SizedBox(width: 12),
-
-                                                  // Favorite Button
-                                                  Expanded(
-                                                    child: AnimatedBuilder(
-                                                      animation:
-                                                          _heartBeatAnimation,
-                                                      builder: (context, child) {
-                                                        return Transform.scale(
-                                                          scale:
-                                                              _heartBeatAnimation
-                                                                  .value,
-                                                          child: child,
-                                                        );
-                                                      },
-                                                      child: Container(
+                                                      const SizedBox(
+                                                        height: 12,
+                                                      ),
+                                                      // Detailed Recipe Button
+                                                      Container(
                                                         decoration: BoxDecoration(
                                                           gradient: LinearGradient(
-                                                            colors: _isFavorite
-                                                                ? [
-                                                                    Colors.pink,
-                                                                    Colors
-                                                                        .pink
-                                                                        .shade300,
-                                                                  ]
-                                                                : [
-                                                                    Colors
-                                                                        .grey
-                                                                        .shade300,
-                                                                    Colors
-                                                                        .grey
-                                                                        .shade200,
-                                                                  ],
+                                                            colors: [
+                                                              getCategoryColor(),
+                                                              getCategoryColor()
+                                                                  .withOpacity(
+                                                                    0.8,
+                                                                  ),
+                                                            ],
                                                           ),
                                                           borderRadius:
                                                               BorderRadius.circular(
-                                                                25,
+                                                                20,
                                                               ),
                                                           boxShadow: [
                                                             BoxShadow(
-                                                              color:
-                                                                  (_isFavorite
-                                                                          ? Colors.pink
-                                                                          : Colors.grey)
-                                                                      .withOpacity(
-                                                                        0.3,
-                                                                      ),
+                                                              color: getCategoryColor()
+                                                                  .withOpacity(
+                                                                    0.3,
+                                                                  ),
                                                               blurRadius: 10,
                                                               offset:
                                                                   const Offset(
@@ -992,8 +957,120 @@ class _SuggestionScreenState extends State<SuggestionScreen>
                                                           color: Colors
                                                               .transparent,
                                                           child: InkWell(
-                                                            onTap:
-                                                                toggleFavorite,
+                                                            onTap: () {
+                                                              Navigator.push(
+                                                                context,
+                                                                MaterialPageRoute(
+                                                                  builder: (context) => RecipeDetailScreen(
+                                                                    meal:
+                                                                        currentMeal,
+                                                                    categoryColor:
+                                                                        getCategoryColor(),
+                                                                    categoryIcon:
+                                                                        getCategoryIcon(),
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            },
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  20,
+                                                                ),
+                                                            child: Padding(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                    horizontal:
+                                                                        20,
+                                                                  ),
+                                                              child: Row(
+                                                                mainAxisAlignment:
+                                                                    MainAxisAlignment
+                                                                        .center,
+                                                                children: const [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .menu_book_rounded,
+                                                                    color: Colors
+                                                                        .white,
+                                                                    size: 22,
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 10,
+                                                                  ),
+                                                                  Text(
+                                                                    'طريقة التحضير بالتفصيل',
+                                                                    style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontSize:
+                                                                          15,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Icon(
+                                                                    Icons
+                                                                        .arrow_back_rounded,
+                                                                    color: Colors
+                                                                        .white,
+                                                                    size: 20,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 25),
+                                                // Buttons
+                                                Row(
+                                                  children: [
+                                                    // Refresh Button
+                                                    Expanded(
+                                                      child: Container(
+                                                        decoration: BoxDecoration(
+                                                          gradient: LinearGradient(
+                                                            colors: [
+                                                              getCategoryColor(),
+                                                              getCategoryColor()
+                                                                  .withOpacity(
+                                                                    0.7,
+                                                                  ),
+                                                            ],
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                25,
+                                                              ),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: getCategoryColor()
+                                                                  .withOpacity(
+                                                                    0.4,
+                                                                  ),
+                                                              blurRadius: 10,
+                                                              offset:
+                                                                  const Offset(
+                                                                    0,
+                                                                    5,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        child: Material(
+                                                          color: Colors
+                                                              .transparent,
+                                                          child: InkWell(
+                                                            onTap: suggestAgain,
                                                             borderRadius:
                                                                 BorderRadius.circular(
                                                                   25,
@@ -1010,34 +1087,22 @@ class _SuggestionScreenState extends State<SuggestionScreen>
                                                                 mainAxisAlignment:
                                                                     MainAxisAlignment
                                                                         .center,
-                                                                children: [
+                                                                children: const [
                                                                   Icon(
-                                                                    _isFavorite
-                                                                        ? Icons
-                                                                              .favorite
-                                                                        : Icons
-                                                                              .favorite_border_rounded,
-                                                                    color:
-                                                                        _isFavorite
-                                                                        ? Colors
-                                                                              .white
-                                                                        : Colors
-                                                                              .grey
-                                                                              .shade600,
+                                                                    Icons
+                                                                        .refresh_rounded,
+                                                                    color: Colors
+                                                                        .white,
                                                                     size: 22,
                                                                   ),
-                                                                  const SizedBox(
+                                                                  SizedBox(
                                                                     width: 8,
                                                                   ),
                                                                   Text(
-                                                                    _isFavorite
-                                                                        ? 'مفضلة!'
-                                                                        : 'أعجبتني',
+                                                                    'وجبة أخرى',
                                                                     style: TextStyle(
-                                                                      color:
-                                                                          _isFavorite
-                                                                          ? Colors.white
-                                                                          : Colors.grey.shade600,
+                                                                      color: Colors
+                                                                          .white,
                                                                       fontSize:
                                                                           15,
                                                                       fontWeight:
@@ -1052,46 +1117,164 @@ class _SuggestionScreenState extends State<SuggestionScreen>
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
 
-                                        // Corner sparkles
-                                        Positioned(
-                                          top: 15,
-                                          right: 15,
-                                          child: AnimatedBuilder(
-                                            animation: _sparkleController,
-                                            builder: (context, child) {
-                                              return Transform.rotate(
-                                                angle:
-                                                    _sparkleController.value *
-                                                    2 *
-                                                    pi,
-                                                child: Opacity(
-                                                  opacity:
-                                                      (sin(
-                                                            _sparkleController
-                                                                    .value *
-                                                                2 *
-                                                                pi,
-                                                          ) +
-                                                          1) /
-                                                      3,
-                                                  child: Icon(
-                                                    Icons.auto_awesome,
-                                                    color: getCategoryColor(),
-                                                    size: 24,
-                                                  ),
+                                                    const SizedBox(width: 12),
+
+                                                    // Favorite Button
+                                                    Expanded(
+                                                      child: AnimatedBuilder(
+                                                        animation:
+                                                            _heartBeatAnimation,
+                                                        builder: (context, child) {
+                                                          return Transform.scale(
+                                                            scale:
+                                                                _heartBeatAnimation
+                                                                    .value,
+                                                            child: child,
+                                                          );
+                                                        },
+                                                        child: Container(
+                                                          decoration: BoxDecoration(
+                                                            gradient: LinearGradient(
+                                                              colors:
+                                                                  _isFavorite
+                                                                  ? [
+                                                                      Colors
+                                                                          .pink,
+                                                                      Colors
+                                                                          .pink
+                                                                          .shade300,
+                                                                    ]
+                                                                  : [
+                                                                      Colors
+                                                                          .grey
+                                                                          .shade300,
+                                                                      Colors
+                                                                          .grey
+                                                                          .shade200,
+                                                                    ],
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  25,
+                                                                ),
+                                                            boxShadow: [
+                                                              BoxShadow(
+                                                                color:
+                                                                    (_isFavorite
+                                                                            ? Colors.pink
+                                                                            : Colors.grey)
+                                                                        .withOpacity(
+                                                                          0.3,
+                                                                        ),
+                                                                blurRadius: 10,
+                                                                offset:
+                                                                    const Offset(
+                                                                      0,
+                                                                      5,
+                                                                    ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          child: Material(
+                                                            color: Colors
+                                                                .transparent,
+                                                            child: InkWell(
+                                                              onTap:
+                                                                  toggleFavorite,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    25,
+                                                                  ),
+                                                              child: Padding(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      vertical:
+                                                                          14,
+                                                                      horizontal:
+                                                                          16,
+                                                                    ),
+                                                                child: Row(
+                                                                  mainAxisAlignment:
+                                                                      MainAxisAlignment
+                                                                          .center,
+                                                                  children: [
+                                                                    Icon(
+                                                                      _isFavorite
+                                                                          ? Icons.favorite
+                                                                          : Icons.favorite_border_rounded,
+                                                                      color:
+                                                                          _isFavorite
+                                                                          ? Colors.white
+                                                                          : Colors.grey.shade600,
+                                                                      size: 22,
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    Text(
+                                                                      _isFavorite
+                                                                          ? 'مفضلة!'
+                                                                          : 'أعجبتني',
+                                                                      style: TextStyle(
+                                                                        color:
+                                                                            _isFavorite
+                                                                            ? Colors.white
+                                                                            : Colors.grey.shade600,
+                                                                        fontSize:
+                                                                            15,
+                                                                        fontWeight:
+                                                                            FontWeight.bold,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              );
-                                            },
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
+
+                                          // Corner sparkles
+                                          Positioned(
+                                            top: 15,
+                                            right: 15,
+                                            child: AnimatedBuilder(
+                                              animation: _sparkleController,
+                                              builder: (context, child) {
+                                                return Transform.rotate(
+                                                  angle:
+                                                      _sparkleController.value *
+                                                      2 *
+                                                      pi,
+                                                  child: Opacity(
+                                                    opacity:
+                                                        (sin(
+                                                              _sparkleController
+                                                                      .value *
+                                                                  2 *
+                                                                  pi,
+                                                            ) +
+                                                            1) /
+                                                        3,
+                                                    child: Icon(
+                                                      Icons.auto_awesome,
+                                                      color: getCategoryColor(),
+                                                      size: 24,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
