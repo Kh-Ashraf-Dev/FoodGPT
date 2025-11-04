@@ -1,22 +1,36 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:food_gpt/screens/suggestions_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:food_gpt/features/suggestions/presentation/view/suggestions_screen.dart';
 
-import '../widgets/category_card.dart';
-import 'favorites_screen.dart';
+import '../../../../widgets/category_card.dart';
+import '../../../favorites/presentation/view/favorites_screen.dart';
+import '../controller/home_cubit.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => HomeCubit(),
+      child: const _HomeScreenView(),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenView extends StatefulWidget {
+  const _HomeScreenView();
+
+  @override
+  State<_HomeScreenView> createState() => _HomeScreenViewState();
+}
+
+class _HomeScreenViewState extends State<_HomeScreenView>
+    with TickerProviderStateMixin {
   final categories = const ['فطور', 'غداء', 'عشاء', 'تحلية', 'سناكس', 'صحي'];
   final random = Random();
-  int _currentIndex = 0;
 
   late AnimationController _controller;
   late AnimationController _particlesController;
@@ -105,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               );
             },
           ),
-        ).then((_) => setState(() => _currentIndex = 0)),
+        ).then((_) => context.read<HomeCubit>().resetIndex()),
       ),
     );
   }
@@ -314,92 +328,109 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1a1a2e),
-            border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildNavItem(
-                    icon: Icons.home_rounded,
-                    label: 'الرئيسية',
-                    isSelected: _currentIndex == 0,
-                    onTap: () => setState(() => _currentIndex = 0),
+        bottomNavigationBar: BlocBuilder<HomeCubit, HomeState>(
+          builder: (context, state) {
+            final currentIndex = state is HomeIndexChanged
+                ? state.currentIndex
+                : 0;
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1a1a2e),
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
                   ),
-                  _buildNavItem(
-                    icon: Icons.lightbulb_rounded,
-                    label: 'اقتراح',
-                    isSelected: _currentIndex == 1,
-                    onTap: () {
-                      setState(() => _currentIndex = 1);
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder: (_, __, ___) => const SuggestionScreen(),
-                          transitionDuration: const Duration(milliseconds: 600),
-                          transitionsBuilder: (_, animation, __, child) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: ScaleTransition(
-                                scale: Tween<double>(begin: 0.8, end: 1.0)
-                                    .animate(
-                                      CurvedAnimation(
-                                        parent: animation,
-                                        curve: Curves.easeOutBack,
-                                      ),
-                                    ),
-                                child: child,
-                              ),
-                            );
-                          },
-                        ),
-                      ).then((_) => setState(() => _currentIndex = 0));
-                    },
-                  ),
-                  _buildNavItem(
-                    icon: Icons.favorite_rounded,
-                    label: 'المفضلة',
-                    isSelected: _currentIndex == 2,
-                    onTap: () {
-                      setState(() => _currentIndex = 2);
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder: (_, __, ___) => const FavoritesScreen(),
-                          transitionDuration: const Duration(milliseconds: 600),
-                          transitionsBuilder: (_, animation, __, child) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position:
-                                    Tween<Offset>(
-                                      begin: const Offset(0, 0.3),
-                                      end: Offset.zero,
-                                    ).animate(
-                                      CurvedAnimation(
-                                        parent: animation,
-                                        curve: Curves.easeOutCubic,
-                                      ),
-                                    ),
-                                child: child,
-                              ),
-                            );
-                          },
-                        ),
-                      ).then((_) => setState(() => _currentIndex = 0));
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavItem(
+                        icon: Icons.home_rounded,
+                        label: 'الرئيسية',
+                        isSelected: currentIndex == 0,
+                        onTap: () =>
+                            context.read<HomeCubit>().setCurrentIndex(0),
+                      ),
+                      _buildNavItem(
+                        icon: Icons.lightbulb_rounded,
+                        label: 'اقتراح',
+                        isSelected: currentIndex == 1,
+                        onTap: () {
+                          context.read<HomeCubit>().setCurrentIndex(1);
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (_, __, ___) =>
+                                  const SuggestionScreen(),
+                              transitionDuration: const Duration(
+                                milliseconds: 600,
+                              ),
+                              transitionsBuilder: (_, animation, __, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: ScaleTransition(
+                                    scale: Tween<double>(begin: 0.8, end: 1.0)
+                                        .animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutBack,
+                                          ),
+                                        ),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                            ),
+                          ).then((_) => context.read<HomeCubit>().resetIndex());
+                        },
+                      ),
+                      _buildNavItem(
+                        icon: Icons.favorite_rounded,
+                        label: 'المفضلة',
+                        isSelected: currentIndex == 2,
+                        onTap: () {
+                          context.read<HomeCubit>().setCurrentIndex(2);
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (_, __, ___) =>
+                                  const FavoritesScreen(),
+                              transitionDuration: const Duration(
+                                milliseconds: 600,
+                              ),
+                              transitionsBuilder: (_, animation, __, child) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position:
+                                        Tween<Offset>(
+                                          begin: const Offset(0, 0.3),
+                                          end: Offset.zero,
+                                        ).animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutCubic,
+                                          ),
+                                        ),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                            ),
+                          ).then((_) => context.read<HomeCubit>().resetIndex());
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

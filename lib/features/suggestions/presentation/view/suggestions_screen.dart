@@ -3,8 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:food_gpt/core/data/suggestions_model.dart';
 import 'package:food_gpt/core/managers/favourite_manager.dart';
-import 'package:food_gpt/screens/favorites_screen.dart';
-import 'package:food_gpt/screens/recipe_detialed_screen.dart';
+import 'package:food_gpt/features/favorites/presentation/view/favorites_screen.dart';
+import 'package:food_gpt/features/recipe_detail/presentation/view/recipe_detialed_screen.dart';
 
 class SuggestionScreen extends StatefulWidget {
   const SuggestionScreen({super.key, this.currentCategory});

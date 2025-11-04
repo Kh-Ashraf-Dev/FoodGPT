@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:food_gpt/core/managers/favourite_manager.dart';
-import 'package:food_gpt/screens/recipe_detialed_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:food_gpt/features/recipe_detail/presentation/view/recipe_detialed_screen.dart';
 
-class FavoritesScreen extends StatefulWidget {
+import '../controller/favorites_cubit.dart';
+
+class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
 
   @override
-  State<FavoritesScreen> createState() => _FavoritesScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => FavoritesCubit()..loadFavorites(),
+      child: const _FavoritesScreenView(),
+    );
+  }
 }
 
-class _FavoritesScreenState extends State<FavoritesScreen>
+class _FavoritesScreenView extends StatefulWidget {
+  const _FavoritesScreenView();
+
+  @override
+  State<_FavoritesScreenView> createState() => _FavoritesScreenViewState();
+}
+
+class _FavoritesScreenViewState extends State<_FavoritesScreenView>
     with TickerProviderStateMixin {
   late AnimationController _headerController;
   late AnimationController _listController;
   late Animation<double> _headerAnimation;
   late Animation<double> _listSlideAnimation;
-
-  List<Map<String, dynamic>> _favorites = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -40,51 +51,10 @@ class _FavoritesScreenState extends State<FavoritesScreen>
       CurvedAnimation(parent: _listController, curve: Curves.easeOutCubic),
     );
 
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    setState(() => _isLoading = true);
-    final favorites = await FavoritesManager.getFavorites();
-    setState(() {
-      _favorites = favorites;
-      _isLoading = false;
-    });
     _headerController.forward();
     Future.delayed(const Duration(milliseconds: 200), () {
       _listController.forward();
     });
-  }
-
-  Future<void> _removeFromFavorites(String mealName, int index) async {
-    final removed = await FavoritesManager.removeFromFavorites(mealName);
-    if (removed && mounted) {
-      setState(() {
-        _favorites.removeAt(index);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'تمت إزالة "$mealName" من المفضلة',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.grey.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
   }
 
   Color _getCategoryColor(String? category) {
@@ -134,146 +104,179 @@ class _FavoritesScreenState extends State<FavoritesScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.pink.withOpacity(0.1),
-                Colors.purple.shade50,
-                Colors.orange.shade50,
-              ],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                FadeTransition(
-                  opacity: _headerAnimation,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 20,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.pink, Colors.pink.shade300],
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(30),
-                        bottomRight: Radius.circular(30),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.pink.withOpacity(0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_forward_rounded),
-                            color: Colors.white,
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ),
-                        Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.favorite,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'وجباتي المفضلة',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${_favorites.length}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 48),
-                      ],
+    return BlocConsumer<FavoritesCubit, FavoritesState>(
+      listener: (context, state) {
+        if (state is FavoritesLoaded && state.favorites.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'تمت إزالة الوجبة من المفضلة',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                   ),
-                ),
+                ],
+              ),
+              backgroundColor: Colors.grey.shade700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        final favorites = state is FavoritesLoaded ? state.favorites : [];
+        final isLoading = state is FavoritesLoading;
 
-                // Content
-                Expanded(
-                  child: _isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: Colors.pink,
-                            strokeWidth: 3,
-                          ),
-                        )
-                      : _favorites.isEmpty
-                      ? _buildEmptyState()
-                      : AnimatedBuilder(
-                          animation: _listSlideAnimation,
-                          builder: (context, child) {
-                            return Transform.translate(
-                              offset: Offset(0, _listSlideAnimation.value),
-                              child: FadeTransition(
-                                opacity: _listController,
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(20),
-                            itemCount: _favorites.length,
-                            itemBuilder: (context, index) {
-                              return _buildFavoriteCard(
-                                _favorites[index],
-                                index,
-                              );
-                            },
-                          ),
-                        ),
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.pink.withOpacity(0.1),
+                    Colors.purple.shade50,
+                    Colors.orange.shade50,
+                  ],
                 ),
-              ],
+              ),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    FadeTransition(
+                      opacity: _headerAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 20,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.pink, Colors.pink.shade300],
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(30),
+                            bottomRight: Radius.circular(30),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.pink.withOpacity(0.3),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.arrow_forward_rounded),
+                                color: Colors.white,
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ),
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.favorite,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'وجباتي المفضلة',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${favorites.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 48),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Content
+                    Expanded(
+                      child: isLoading
+                          ? Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.pink,
+                                strokeWidth: 3,
+                              ),
+                            )
+                          : favorites.isEmpty
+                          ? _buildEmptyState()
+                          : AnimatedBuilder(
+                              animation: _listSlideAnimation,
+                              builder: (context, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, _listSlideAnimation.value),
+                                  child: FadeTransition(
+                                    opacity: _listController,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(20),
+                                itemCount: favorites.length,
+                                itemBuilder: (context, index) {
+                                  return _buildFavoriteCard(
+                                    favorites[index],
+                                    index,
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -591,7 +594,9 @@ class _FavoritesScreenState extends State<FavoritesScreen>
                                 TextButton(
                                   onPressed: () {
                                     Navigator.pop(context);
-                                    _removeFromFavorites(meal['name'], index);
+                                    context
+                                        .read<FavoritesCubit>()
+                                        .removeFavorite(meal['name'], index);
                                   },
                                   child: const Text(
                                     'حذف',

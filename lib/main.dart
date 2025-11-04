@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_screen.dart';
+
 import 'core/theme/app_theme.dart';
+import 'features/welcome/presentation/view/welcome_screen.dart';
 
 void main() {
   runApp(const FancyMommyMealsApp());

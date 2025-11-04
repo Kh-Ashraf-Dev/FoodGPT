@@ -2,15 +2,30 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-class LoginScreen extends StatefulWidget {
+import '../controller/login_cubit.dart';
+
+class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => LoginCubit(),
+      child: const _LoginScreenView(),
+    );
+  }
 }
 
-class _LoginScreenState extends State<LoginScreen>
+class _LoginScreenView extends StatefulWidget {
+  const _LoginScreenView();
+
+  @override
+  State<_LoginScreenView> createState() => _LoginScreenViewState();
+}
+
+class _LoginScreenViewState extends State<_LoginScreenView>
     with TickerProviderStateMixin {
   late AnimationController _headerController;
   late AnimationController _formController;
@@ -25,8 +40,6 @@ class _LoginScreenState extends State<LoginScreen>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -39,23 +52,23 @@ class _LoginScreenState extends State<LoginScreen>
     _headerScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _headerController, curve: Curves.elasticOut),
     );
-    _headerOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _headerController, curve: Curves.easeIn),
-    );
+    _headerOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _headerController, curve: Curves.easeIn));
 
     _formController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
-    _formSlide = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _formController, curve: Curves.easeOutCubic),
-    );
-    _formOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _formController, curve: Curves.easeIn),
-    );
+    _formSlide = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _formController, curve: Curves.easeOutCubic),
+        );
+    _formOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _formController, curve: Curves.easeIn));
 
     _particlesController = AnimationController(
       vsync: this,
@@ -120,15 +133,14 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _handleLogin() async {
+  void _handleLogin(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() => _isLoading = false);
-      
-      // Navigate to home or show success
-      if (mounted) {
+      await context.read<LoginCubit>().login(
+        _emailController.text,
+        _passwordController.text,
+      );
+
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تم تسجيل الدخول بنجاح'),
@@ -238,7 +250,8 @@ class _LoginScreenState extends State<LoginScreen>
                                         BoxShadow(
                                           color: const Color(0xFF3B8A00)
                                               .withOpacity(
-                                                0.3 + _glowController.value * 0.2,
+                                                0.3 +
+                                                    _glowController.value * 0.2,
                                               ),
                                           blurRadius:
                                               30 + _glowController.value * 15,
@@ -312,29 +325,37 @@ class _LoginScreenState extends State<LoginScreen>
                                   const SizedBox(height: 20),
 
                                   // Password field
-                                  _buildTextField(
-                                    controller: _passwordController,
-                                    hint: 'كلمة المرور',
-                                    icon: Icons.lock_outline,
-                                    obscureText: _obscurePassword,
-                                    suffixIcon: IconButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off_outlined
-                                            : Icons.visibility_outlined,
-                                        color: Colors.white.withOpacity(0.6),
-                                      ),
-                                    ),
-                                    validator: (value) {
-                                      if (value?.isEmpty ?? true) {
-                                        return 'من فضلك أدخل كلمة المرور';
-                                      }
-                                      return null;
+                                  BlocBuilder<LoginCubit, LoginState>(
+                                    builder: (context, state) {
+                                      return _buildTextField(
+                                        controller: _passwordController,
+                                        hint: 'كلمة المرور',
+                                        icon: Icons.lock_outline,
+                                        obscureText: state.obscurePassword,
+                                        suffixIcon: IconButton(
+                                          onPressed: () {
+                                            context
+                                                .read<LoginCubit>()
+                                                .setObscurePassword(
+                                                  !state.obscurePassword,
+                                                );
+                                          },
+                                          icon: Icon(
+                                            state.obscurePassword
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
+                                            color: Colors.white.withOpacity(
+                                              0.6,
+                                            ),
+                                          ),
+                                        ),
+                                        validator: (value) {
+                                          if (value?.isEmpty ?? true) {
+                                            return 'من فضلك أدخل كلمة المرور';
+                                          }
+                                          return null;
+                                        },
+                                      );
                                     },
                                   ),
 
@@ -358,10 +379,14 @@ class _LoginScreenState extends State<LoginScreen>
                                   const SizedBox(height: 30),
 
                                   // Login button
-                                  _buildGradientButton(
-                                    onPressed: _handleLogin,
-                                    text: 'تسجيل الدخول',
-                                    isLoading: _isLoading,
+                                  BlocBuilder<LoginCubit, LoginState>(
+                                    builder: (context, state) {
+                                      return _buildGradientButton(
+                                        onPressed: () => _handleLogin(context),
+                                        text: 'تسجيل الدخول',
+                                        isLoading: state.isLoading,
+                                      );
+                                    },
                                   ),
 
                                   const SizedBox(height: 30),
@@ -381,7 +406,9 @@ class _LoginScreenState extends State<LoginScreen>
                                         child: Text(
                                           'أو',
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(0.5),
+                                            color: Colors.white.withOpacity(
+                                              0.5,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -437,7 +464,8 @@ class _LoginScreenState extends State<LoginScreen>
                                           style: TextStyle(
                                             color: const Color(0xFF3B8A00),
                                             fontWeight: FontWeight.bold,
-                                            decoration: TextDecoration.underline,
+                                            decoration:
+                                                TextDecoration.underline,
                                           ),
                                         ),
                                       ),
@@ -475,10 +503,7 @@ class _LoginScreenState extends State<LoginScreen>
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 600),
       builder: (context, value, child) {
-        return Transform.scale(
-          scale: value,
-          child: child,
-        );
+        return Transform.scale(scale: value, child: child);
       },
       child: Container(
         decoration: BoxDecoration(
@@ -489,10 +514,7 @@ class _LoginScreenState extends State<LoginScreen>
               Colors.white.withOpacity(0.02),
             ],
           ),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-            width: 1,
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
         ),
         child: TextFormField(
           controller: controller,
@@ -502,13 +524,8 @@ class _LoginScreenState extends State<LoginScreen>
           style: TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-            ),
-            prefixIcon: Icon(
-              icon,
-              color: const Color(0xFF3B8A00),
-            ),
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+            prefixIcon: Icon(icon, color: const Color(0xFF3B8A00)),
             suffixIcon: suffixIcon,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -533,10 +550,7 @@ class _LoginScreenState extends State<LoginScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
-          colors: [
-            const Color(0xFF3B8A00),
-            const Color(0xFF4CA500),
-          ],
+          colors: [const Color(0xFF3B8A00), const Color(0xFF4CA500)],
         ),
         boxShadow: [
           BoxShadow(
@@ -576,18 +590,12 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildSocialButton({
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _buildSocialButton({required IconData icon, required Color color}) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 800),
       builder: (context, value, child) {
-        return Transform.scale(
-          scale: value,
-          child: child,
-        );
+        return Transform.scale(scale: value, child: child);
       },
       child: Container(
         width: 60,
@@ -595,21 +603,14 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white.withOpacity(0.05),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-            width: 1,
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: () {},
             customBorder: CircleBorder(),
-            child: Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
+            child: Icon(icon, color: color, size: 28),
           ),
         ),
       ),
