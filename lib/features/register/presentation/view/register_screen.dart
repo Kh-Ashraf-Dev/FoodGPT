@@ -3,6 +3,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:food_gpt/core/managers/snack_bar_manager.dart';
+import 'package:food_gpt/core/services/locator/service_locator.dart';
+import 'package:food_gpt/features/login/presentation/view/login_screen.dart';
+import 'package:food_gpt/features/register/data/model/register_model.dart';
+import 'package:food_gpt/features/register/presentation/controller/register_state.dart';
 
 import '../controller/register_cubit.dart';
 
@@ -12,8 +17,51 @@ class RegisterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => RegisterCubit(),
-      child: const _RegisterScreenView(),
+      create: (context) => sl<RegisterCubit>(),
+      child: BlocListener<RegisterCubit, RegisterState>(
+        listener: (context, state) {
+          state.maybeWhen(
+            success: (message, _, __, ___, ____) {
+              SnackbarManager.show(
+                context,
+                message: message,
+                backgroundColor: const Color(0xFF3B8A00),
+              );
+
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  transitionDuration: const Duration(milliseconds: 800),
+                  pageBuilder: (_, __, ___) => const LoginScreen(),
+                  transitionsBuilder: (_, animation, __, child) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.9, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutBack,
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+            failure: (failure, _, __, ___, ____) {
+              SnackbarManager.show(
+                context,
+                message: failure.message,
+                backgroundColor: const Color.fromARGB(255, 243, 7, 7),
+              );
+            },
+            orElse: () {},
+          );
+        },
+        child: const _RegisterScreenView(),
+      ),
     );
   }
 }
@@ -44,6 +92,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _ageController = TextEditingController();
 
   final _pageController = PageController();
 
@@ -112,6 +161,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _ageController.dispose();
     super.dispose();
   }
 
@@ -151,23 +201,31 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
 
   void _nextStep() {
     final state = context.read<RegisterCubit>().state;
-    if (state.currentStep < 2) {
-      context.read<RegisterCubit>().nextStep();
-      _pageController.animateToPage(
-        state.currentStep + 1,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-      _progressController.forward(from: 0);
+
+    // ✅ استخدم الـ getter أو when للوصول للـ currentStep
+    final currentStep = state.currentStep;
+
+    if (currentStep < 2) {
+      if (_formKey.currentState!.validate()) {
+        context.read<RegisterCubit>().nextStep();
+        _pageController.animateToPage(
+          currentStep + 1,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+        _progressController.forward(from: 0);
+      }
     }
   }
 
   void _previousStep() {
     final state = context.read<RegisterCubit>().state;
-    if (state.currentStep > 0) {
+    final currentStep = state.currentStep;
+
+    if (currentStep > 0) {
       context.read<RegisterCubit>().previousStep();
       _pageController.animateToPage(
-        state.currentStep - 1,
+        currentStep - 1,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
       );
@@ -180,22 +238,20 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
     final state = cubit.state;
 
     if (_formKey.currentState!.validate() && state.acceptTerms) {
-      await cubit.register();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم إنشاء الحساب بنجاح'),
-            backgroundColor: const Color(0xFF3B8A00),
-          ),
-        );
-      }
-    } else if (!state.acceptTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('يجب الموافقة على الشروط والأحكام'),
-          backgroundColor: Colors.red.shade400,
+      await cubit.register(
+        RegisterModel(
+          username: _nameController.text,
+          email: _emailController.text,
+          password: _passwordController.text,
+          phoneNumber: _phoneController.text,
+          age: int.parse(_ageController.text),
         ),
+      );
+    } else if (!state.acceptTerms) {
+      SnackbarManager.show(
+        context,
+        message: "يجب الموافقة على الشروط والأحكام",
+        backgroundColor: Colors.red.shade400,
       );
     }
   }
@@ -208,6 +264,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: Color(0xFF0f3460),
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -250,15 +307,6 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                         padding: const EdgeInsets.all(20),
                         child: Row(
                           children: [
-                            IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white.withOpacity(0.8),
-                                size: 28,
-                              ),
-                            ),
-                            const Spacer(),
                             BlocBuilder<RegisterCubit, RegisterState>(
                               builder: (context, state) =>
                                   _buildProgressIndicator(state.currentStep),
@@ -351,7 +399,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
 
                       // Form pages
                       SizedBox(
-                        height: 300,
+                        height: 350,
                         child: SlideTransition(
                           position: _formSlide,
                           child: FadeTransition(
@@ -372,41 +420,101 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                         ),
                       ),
 
-                      const SizedBox(height: 30),
-
                       // Navigation buttons
                       BlocBuilder<RegisterCubit, RegisterState>(
                         builder: (context, state) {
+                          final currentStep = state.currentStep;
+
                           return Padding(
-                            padding: const EdgeInsets.all(30),
+                            padding: const EdgeInsets.only(
+                              right: 30,
+                              left: 30,
+                              bottom: 30,
+                              top: 10,
+                            ),
                             child: Row(
                               children: [
-                                if (state.currentStep > 0)
+                                if (currentStep > 0)
                                   Expanded(
                                     child: _buildOutlineButton(
                                       onPressed: _previousStep,
                                       text: 'السابق',
                                     ),
                                   ),
-                                if (state.currentStep > 0)
-                                  const SizedBox(width: 16),
+                                if (currentStep > 0) const SizedBox(width: 16),
                                 Expanded(
                                   child: _buildGradientButton(
-                                    onPressed: state.currentStep == 2
+                                    onPressed: currentStep == 2
                                         ? () => _handleRegister(context)
                                         : _nextStep,
-                                    text: state.currentStep == 2
+                                    text: currentStep == 2
                                         ? 'إنشاء الحساب'
                                         : 'التالي',
                                     isLoading:
-                                        state.isLoading &&
-                                        state.currentStep == 2,
+                                        state.isLoading && currentStep == 2,
                                   ),
                                 ),
                               ],
                             ),
                           );
                         },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 30),
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(
+                                    milliseconds: 800,
+                                  ),
+                                  pageBuilder: (_, __, ___) =>
+                                      const LoginScreen(),
+                                  transitionsBuilder:
+                                      (_, animation, __, child) {
+                                        return FadeTransition(
+                                          opacity: animation,
+                                          child: ScaleTransition(
+                                            scale:
+                                                Tween<double>(
+                                                  begin: 0.9,
+                                                  end: 1.0,
+                                                ).animate(
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves.easeOutBack,
+                                                  ),
+                                                ),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                ),
+                              );
+                            },
+                            child: RichText(
+                              text: TextSpan(
+                                text: 'لديك حساب بالفعل؟ ',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: 'تسجيل دخول',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade400,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -439,39 +547,53 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
   }
 
   Widget _buildStep1() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'المعلومات الشخصية',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'المعلومات الشخصية',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        _buildTextField(
-          controller: _nameController,
-          hint: 'الاسم الكامل',
-          icon: Icons.person_outline,
-          validator: (value) {
-            if (value?.isEmpty ?? true) return 'من فضلك أدخل الاسم';
-            return null;
-          },
-        ),
-        const SizedBox(height: 20),
-        _buildTextField(
-          controller: _phoneController,
-          hint: 'رقم الهاتف',
-          icon: Icons.phone_outlined,
-          keyboardType: TextInputType.phone,
-          validator: (value) {
-            if (value?.isEmpty ?? true) return 'من فضلك أدخل رقم الهاتف';
-            return null;
-          },
-        ),
-      ],
+          const SizedBox(height: 24),
+          _buildTextField(
+            controller: _nameController,
+            hint: 'الاسم الكامل',
+            icon: Icons.person_outline,
+            validator: (value) {
+              if (value?.isEmpty ?? true) return 'من فضلك أدخل الاسم';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildTextField(
+            controller: _phoneController,
+            hint: 'رقم الهاتف',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value?.isEmpty ?? true) return 'من فضلك أدخل رقم الهاتف';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildTextField(
+            controller: _ageController,
+            hint: 'العمر',
+            icon: Icons.hourglass_bottom,
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value?.isEmpty ?? true) return 'من فضلك أدخل العمر';
+              return null;
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -534,9 +656,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                 obscureText: state.obscurePassword,
                 suffixIcon: IconButton(
                   onPressed: () {
-                    context.read<RegisterCubit>().setObscurePassword(
-                      !state.obscurePassword,
-                    );
+                    context.read<RegisterCubit>().togglePasswordVisibility();
                   },
                   icon: Icon(
                     state.obscurePassword
@@ -563,9 +683,9 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                 obscureText: state.obscureConfirmPassword,
                 suffixIcon: IconButton(
                   onPressed: () {
-                    context.read<RegisterCubit>().setObscureConfirmPassword(
-                      !state.obscureConfirmPassword,
-                    );
+                    context
+                        .read<RegisterCubit>()
+                        .toggleConfirmPasswordVisibility();
                   },
                   icon: Icon(
                     state.obscureConfirmPassword
@@ -608,7 +728,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                       child: Checkbox(
                         value: state.acceptTerms,
                         onChanged: (value) {
-                          context.read<RegisterCubit>().setAcceptTerms(
+                          context.read<RegisterCubit>().updateTermsAcceptance(
                             value ?? false,
                           );
                         },
@@ -649,27 +769,6 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'لديك حساب بالفعل؟ ',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Text(
-                      'سجل الدخول',
-                      style: TextStyle(
-                        color: const Color(0xFF3B8A00),
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -722,7 +821,7 @@ class _RegisterScreenViewState extends State<_RegisterScreenView>
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.all(20),
+            contentPadding: const EdgeInsets.all(15),
           ),
         ),
       ),

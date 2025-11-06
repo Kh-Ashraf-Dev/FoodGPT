@@ -11,11 +11,36 @@ class RecipeDetailInitial extends RecipeDetailState {
   const RecipeDetailInitial();
 }
 
-class RecipeDetailLoaded extends RecipeDetailState {
-  final Set<int> completedSteps;
+class RecipeDetailLoading extends RecipeDetailState {}
 
-  const RecipeDetailLoaded(this.completedSteps);
+class RecipeDetailError extends RecipeDetailState {
+  final String message;
+
+  const RecipeDetailError(this.message);
 
   @override
-  List<Object?> get props => [completedSteps];
+  List<Object?> get props => [message];
+}
+
+class RecipeDetailLoaded extends RecipeDetailState {
+  final RecipeModel? recipe;
+  final Set<int> completedSteps;
+
+  const RecipeDetailLoaded({
+    this.recipe,
+    this.completedSteps = const {},
+  });
+
+  RecipeDetailLoaded copyWith({
+    RecipeModel? recipe,
+    Set<int>? completedSteps,
+  }) {
+    return RecipeDetailLoaded(
+      recipe: recipe ?? this.recipe,
+      completedSteps: completedSteps ?? this.completedSteps,
+    );
+  }
+
+  @override
+  List<Object?> get props => [recipe, completedSteps];
 }

@@ -2,6 +2,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:food_gpt/core/services/locator/service_locator.dart';
+import 'package:food_gpt/core/utils/logger.dart';
+import 'package:food_gpt/features/home/data/model/categories_model.dart';
+import 'package:food_gpt/features/suggestions/presentation/controller/suggestions_cubit.dart';
 import 'package:food_gpt/features/suggestions/presentation/view/suggestions_screen.dart';
 
 import '../../../../widgets/category_card.dart';
@@ -14,7 +18,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => HomeCubit(),
+      create: (context) => sl<HomeCubit>()..getCategories(),
       child: const _HomeScreenView(),
     );
   }
@@ -29,9 +33,6 @@ class _HomeScreenView extends StatefulWidget {
 
 class _HomeScreenViewState extends State<_HomeScreenView>
     with TickerProviderStateMixin {
-  final categories = const ['فطور', 'غداء', 'عشاء', 'تحلية', 'سناكس', 'صحي'];
-  final random = Random();
-
   late AnimationController _controller;
   late AnimationController _particlesController;
   late AnimationController _headerController;
@@ -80,7 +81,11 @@ class _HomeScreenViewState extends State<_HomeScreenView>
     super.dispose();
   }
 
-  Widget _buildAnimatedGridItem(BuildContext context, int index) {
+  Widget _buildAnimatedGridItem(
+    BuildContext context,
+    int index,
+    Category category,
+  ) {
     final delay = index * 120;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -97,12 +102,14 @@ class _HomeScreenViewState extends State<_HomeScreenView>
         );
       },
       child: CategoryCard(
-        category: categories[index],
+        category: category.name,
         onTap: () => Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) =>
-                SuggestionScreen(currentCategory: categories[index]),
+            pageBuilder: (_, __, ___) => BlocProvider(
+              create: (context) => sl<SuggestionsCubit>(param1: category.id),
+              child: const SuggestionScreen(),
+            ),
             transitionDuration: const Duration(milliseconds: 600),
             transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(
@@ -302,25 +309,116 @@ class _HomeScreenViewState extends State<_HomeScreenView>
                     ),
 
                     // Grid View
-                    Expanded(
-                      child: FadeTransition(
-                        opacity: _fadeAnimation,
-                        child: ScaleTransition(
-                          scale: _scaleAnimation,
-                          child: GridView.builder(
-                            padding: const EdgeInsets.all(20),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                  childAspectRatio: 1.0,
+                    BlocBuilder<HomeCubit, HomeState>(
+                      builder: (context, state) {
+                        Logger.debug(state.toString());
+                        if (state is HomeLoading || state is HomeInitial) {
+                          return Expanded(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.pink.shade300,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'جاري تحميل الفئات...',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (state is HomeError) {
+                          return Expanded(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: Colors.red.shade300,
+                                    size: 64,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    state.message,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      context.read<HomeCubit>().getCategories();
+                                    },
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('إعادة المحاولة'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.pink.shade400,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (state is HomeCategoriesLoaded) {
+                          final categories = state.categories.categories;
+                          return Expanded(
+                            child: FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: ScaleTransition(
+                                scale: _scaleAnimation,
+                                child: GridView.builder(
+                                  padding: const EdgeInsets.all(20),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        crossAxisSpacing: 16,
+                                        mainAxisSpacing: 16,
+                                        childAspectRatio: 1.0,
+                                      ),
+                                  itemCount: categories.length,
+                                  itemBuilder: (context, index) =>
+                                      _buildAnimatedGridItem(
+                                        context,
+                                        index,
+                                        categories[index],
+                                      ),
                                 ),
-                            itemCount: categories.length,
-                            itemBuilder: _buildAnimatedGridItem,
+                              ),
+                            ),
+                          );
+                        }
+
+                        // Initial state or fallback
+                        return Expanded(
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.pink.shade300,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -365,8 +463,10 @@ class _HomeScreenViewState extends State<_HomeScreenView>
                           Navigator.push(
                             context,
                             PageRouteBuilder(
-                              pageBuilder: (_, __, ___) =>
-                                  const SuggestionScreen(),
+                              pageBuilder: (_, __, ___) => BlocProvider(
+                                create: (context) => sl<SuggestionsCubit>(),
+                                child: const SuggestionScreen(),
+                              ),
                               transitionDuration: const Duration(
                                 milliseconds: 600,
                               ),

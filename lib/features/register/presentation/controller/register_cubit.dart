@@ -1,49 +1,131 @@
-import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-part 'register_state.dart';
+import 'package:food_gpt/core/utils/logger.dart';
+import 'package:food_gpt/features/register/data/model/register_model.dart';
+import 'package:food_gpt/features/register/domain/repository/register_repository.dart';
+import 'package:food_gpt/features/register/presentation/controller/register_state.dart';
 
 class RegisterCubit extends Cubit<RegisterState> {
-  RegisterCubit() : super(const RegisterState());
+  final RegisterRepository _registerRepository;
 
-  void setCurrentStep(int step) {
-    emit(state.copyWith(currentStep: step));
+  RegisterCubit(this._registerRepository)
+    : super(const RegisterState.initial());
+  void _emitNextStep(RegisterState s) {
+    if (s.currentStep < 2) {
+      emit(s.copyWith(currentStep: s.currentStep + 1));
+    }
+  }
+
+  void _emitPreviousStep(RegisterState s) {
+    if (s.currentStep > 0) {
+      emit(s.copyWith(currentStep: s.currentStep - 1));
+    }
   }
 
   void nextStep() {
-    if (state.currentStep < 2) {
-      emit(state.copyWith(currentStep: state.currentStep + 1));
-    }
+    state.maybeMap(
+      initial: (initialState) => _emitNextStep(initialState),
+      failure: (value) => _emitNextStep(value),
+      orElse: () {},
+    );
   }
 
   void previousStep() {
-    if (state.currentStep > 0) {
-      emit(state.copyWith(currentStep: state.currentStep - 1));
-    }
+    state.maybeMap(
+      initial: (initialState) => _emitPreviousStep(initialState),
+      failure: (value) => _emitPreviousStep(value),
+      orElse: () {
+        Logger.debug(state.toString());
+      },
+    );
   }
 
-  void setObscurePassword(bool obscure) {
-    emit(state.copyWith(obscurePassword: obscure));
+  void togglePasswordVisibility() {
+    state.maybeMap(
+      initial: (initialState) {
+        emit(
+          initialState.copyWith(obscurePassword: !initialState.obscurePassword),
+        );
+      },
+      orElse: () {},
+    );
   }
 
-  void setObscureConfirmPassword(bool obscure) {
-    emit(state.copyWith(obscureConfirmPassword: obscure));
+  void toggleConfirmPasswordVisibility() {
+    state.maybeMap(
+      initial: (initialState) {
+        emit(
+          initialState.copyWith(
+            obscureConfirmPassword: !initialState.obscureConfirmPassword,
+          ),
+        );
+      },
+      orElse: () {},
+    );
   }
 
-  void setAcceptTerms(bool accept) {
-    emit(state.copyWith(acceptTerms: accept));
+  void updateTermsAcceptance(bool accept) {
+    state.maybeMap(
+      initial: (initialState) {
+        emit(initialState.copyWith(acceptTerms: accept));
+      },
+      orElse: () {},
+    );
   }
 
-  void setLoading(bool loading) {
-    emit(state.copyWith(isLoading: loading));
-  }
+  Future<void> register(RegisterModel registerModel) async {
+    // حفظ الـ state الحالي
+    final currentState = state;
 
-  Future<void> register() async {
-    emit(state.copyWith(isLoading: true));
+    emit(
+      RegisterState.loading(
+        currentStep: currentState.currentStep,
+        obscurePassword: currentState.obscurePassword,
+        obscureConfirmPassword: currentState.obscureConfirmPassword,
+        acceptTerms: currentState.acceptTerms,
+      ),
+    );
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    final result = await _registerRepository.register(registerModel);
 
-    emit(state.copyWith(isLoading: false));
+    result.fold(
+      (failure) {
+        emit(
+          RegisterState.failure(
+            failure: failure,
+            currentStep: currentState.currentStep,
+            obscurePassword: currentState.obscurePassword,
+            obscureConfirmPassword: currentState.obscureConfirmPassword,
+            acceptTerms: currentState.acceptTerms,
+          ),
+        );
+        emit(
+          RegisterState.initial(
+            currentStep: currentState.currentStep,
+            obscurePassword: currentState.obscurePassword,
+            obscureConfirmPassword: currentState.obscureConfirmPassword,
+            acceptTerms: currentState.acceptTerms,
+          ),
+        );
+      },
+      (message) {
+        emit(
+          RegisterState.success(
+            message: message,
+            currentStep: currentState.currentStep,
+            obscurePassword: currentState.obscurePassword,
+            obscureConfirmPassword: currentState.obscureConfirmPassword,
+            acceptTerms: currentState.acceptTerms,
+          ),
+        );
+        emit(
+          RegisterState.initial(
+            currentStep: currentState.currentStep,
+            obscurePassword: currentState.obscurePassword,
+            obscureConfirmPassword: currentState.obscureConfirmPassword,
+            acceptTerms: currentState.acceptTerms,
+          ),
+        );
+      },
+    );
   }
 }

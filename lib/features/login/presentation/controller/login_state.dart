@@ -1,18 +1,22 @@
-part of 'login_cubit.dart';
+import 'package:food_gpt/core/error/failure.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class LoginState extends Equatable {
-  final bool obscurePassword;
-  final bool isLoading;
+part 'login_state.freezed.dart';
 
-  const LoginState({this.obscurePassword = true, this.isLoading = false});
+@freezed
+sealed class LoginState with _$LoginState {
+  const LoginState._();
 
-  LoginState copyWith({bool? obscurePassword, bool? isLoading}) {
-    return LoginState(
-      obscurePassword: obscurePassword ?? this.obscurePassword,
-      isLoading: isLoading ?? this.isLoading,
-    );
-  }
+  const factory LoginState.initial() = _Initial;
 
-  @override
-  List<Object?> get props => [obscurePassword, isLoading];
+  const factory LoginState.loading() = _Loading;
+
+  const factory LoginState.success({required String message}) = _Success;
+
+  const factory LoginState.failure({required Failure failure}) = _Failure;
+
+  bool get isInitial => this is _Initial;
+  bool get isSuccess => this is _Success;
+  bool get isFailure => this is _Failure;
+  bool get isLoading => this is _Loading;
 }

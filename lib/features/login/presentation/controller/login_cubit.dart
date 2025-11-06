@@ -1,25 +1,22 @@
-import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-part 'login_state.dart';
+import 'package:food_gpt/features/login/data/model/login_model.dart';
+import 'package:food_gpt/features/login/domain/repository/login_repository.dart';
+import 'package:food_gpt/features/login/presentation/controller/login_state.dart';
 
 class LoginCubit extends Cubit<LoginState> {
-  LoginCubit() : super(const LoginState());
+  LoginCubit(this._loginRepository) : super(const LoginState.initial());
+  final LoginRepository _loginRepository;
 
-  void setObscurePassword(bool obscure) {
-    emit(state.copyWith(obscurePassword: obscure));
-  }
-
-  void setLoading(bool loading) {
-    emit(state.copyWith(isLoading: loading));
-  }
-
-  Future<void> login(String email, String password) async {
-    emit(state.copyWith(isLoading: true));
-
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-
-    emit(state.copyWith(isLoading: false));
+  Future<void> login(LoginModel loginModel) async {
+    emit(LoginState.loading());
+    final result = await _loginRepository.login(loginModel: loginModel);
+    result.fold(
+      (left) {
+        emit(LoginState.failure(failure: left));
+      },
+      (right) {
+        emit(LoginState.success(message: right));
+      },
+    );
   }
 }

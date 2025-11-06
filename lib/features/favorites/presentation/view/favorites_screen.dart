@@ -407,7 +407,7 @@ class _FavoritesScreenViewState extends State<_FavoritesScreenView>
                 context,
                 MaterialPageRoute(
                   builder: (context) => RecipeDetailScreen(
-                    meal: meal,
+                    mealId: meal[""],
                     categoryColor: categoryColor,
                     categoryIcon: categoryIcon,
                   ),

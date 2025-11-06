@@ -3,6 +3,12 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:food_gpt/core/managers/snack_bar_manager.dart';
+import 'package:food_gpt/core/services/locator/service_locator.dart';
+import 'package:food_gpt/features/home/presentation/view/home_screen.dart';
+import 'package:food_gpt/features/login/data/model/login_model.dart';
+import 'package:food_gpt/features/login/presentation/controller/login_state.dart';
+import 'package:food_gpt/features/register/presentation/view/register_screen.dart';
 
 import '../controller/login_cubit.dart';
 
@@ -12,8 +18,52 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => LoginCubit(),
-      child: const _LoginScreenView(),
+      create: (context) => sl<LoginCubit>(),
+      child: BlocListener<LoginCubit, LoginState>(
+        listener: (context, state) {
+          state.mapOrNull(
+            success: (message) {
+              if (!context.mounted) return;
+
+              SnackbarManager.show(
+                context,
+                message: message.message,
+                backgroundColor: const Color(0xFF3B8A00),
+              );
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  transitionDuration: const Duration(milliseconds: 800),
+                  pageBuilder: (_, __, ___) => const HomeScreen(),
+                  transitionsBuilder: (_, animation, __, child) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.9, end: 1.0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutBack,
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+
+            failure: (value) {
+              SnackbarManager.show(
+                context,
+                message: value.failure.message,
+                backgroundColor: const Color.fromARGB(255, 243, 7, 7),
+              );
+            },
+          );
+        },
+        child: const _LoginScreenView(),
+      ),
     );
   }
 }
@@ -40,6 +90,7 @@ class _LoginScreenViewState extends State<_LoginScreenView>
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscure = true;
 
   @override
   void initState() {
@@ -136,18 +187,11 @@ class _LoginScreenViewState extends State<_LoginScreenView>
   void _handleLogin(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
       await context.read<LoginCubit>().login(
-        _emailController.text,
-        _passwordController.text,
+        LoginModel(
+          password: _passwordController.text,
+          email: _emailController.text.toLowerCase(),
+        ),
       );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم تسجيل الدخول بنجاح'),
-            backgroundColor: const Color(0xFF3B8A00),
-          ),
-        );
-      }
     }
   }
 
@@ -160,6 +204,7 @@ class _LoginScreenViewState extends State<_LoginScreenView>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: Container(
+          height: screenHeight,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -207,7 +252,37 @@ class _LoginScreenViewState extends State<_LoginScreenView>
                         Align(
                           alignment: Alignment.centerRight,
                           child: IconButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(
+                                    milliseconds: 800,
+                                  ),
+                                  pageBuilder: (_, __, ___) =>
+                                      const RegisterScreen(),
+                                  transitionsBuilder:
+                                      (_, animation, __, child) {
+                                        return FadeTransition(
+                                          opacity: animation,
+                                          child: ScaleTransition(
+                                            scale:
+                                                Tween<double>(
+                                                  begin: 0.9,
+                                                  end: 1.0,
+                                                ).animate(
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves.easeOutBack,
+                                                  ),
+                                                ),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                ),
+                              );
+                            },
                             icon: Icon(
                               Icons.arrow_forward_rounded,
                               color: Colors.white.withOpacity(0.8),
@@ -331,17 +406,15 @@ class _LoginScreenViewState extends State<_LoginScreenView>
                                         controller: _passwordController,
                                         hint: 'كلمة المرور',
                                         icon: Icons.lock_outline,
-                                        obscureText: state.obscurePassword,
+                                        obscureText: _obscure,
                                         suffixIcon: IconButton(
                                           onPressed: () {
-                                            context
-                                                .read<LoginCubit>()
-                                                .setObscurePassword(
-                                                  !state.obscurePassword,
-                                                );
+                                            setState(() {
+                                              _obscure = !_obscure;
+                                            });
                                           },
                                           icon: Icon(
-                                            state.obscurePassword
+                                            _obscure
                                                 ? Icons.visibility_off_outlined
                                                 : Icons.visibility_outlined,
                                             color: Colors.white.withOpacity(
@@ -362,21 +435,21 @@ class _LoginScreenViewState extends State<_LoginScreenView>
                                   const SizedBox(height: 12),
 
                                   // Forgot password
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: TextButton(
-                                      onPressed: () {},
-                                      child: Text(
-                                        'نسيت كلمة المرور؟',
-                                        style: TextStyle(
-                                          color: const Color(0xFF3B8A00),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  // Align(
+                                  //   alignment: Alignment.centerLeft,
+                                  //   child: TextButton(
+                                  //     onPressed: () {},
+                                  //     child: Text(
+                                  //       'نسيت كلمة المرور؟',
+                                  //       style: TextStyle(
+                                  //         color: const Color(0xFF3B8A00),
+                                  //         fontWeight: FontWeight.w600,
+                                  //       ),
+                                  //     ),
+                                  //   ),
+                                  // ),
 
-                                  const SizedBox(height: 30),
+                                  // const SizedBox(height: 30),
 
                                   // Login button
                                   BlocBuilder<LoginCubit, LoginState>(
@@ -387,89 +460,6 @@ class _LoginScreenViewState extends State<_LoginScreenView>
                                         isLoading: state.isLoading,
                                       );
                                     },
-                                  ),
-
-                                  const SizedBox(height: 30),
-
-                                  // Divider
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Divider(
-                                          color: Colors.white.withOpacity(0.2),
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                        ),
-                                        child: Text(
-                                          'أو',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Divider(
-                                          color: Colors.white.withOpacity(0.2),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 30),
-
-                                  // Social login buttons
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildSocialButton(
-                                        icon: Icons.g_mobiledata,
-                                        color: Colors.red.shade400,
-                                      ),
-                                      const SizedBox(width: 20),
-                                      _buildSocialButton(
-                                        icon: Icons.facebook,
-                                        color: Colors.blue.shade600,
-                                      ),
-                                      const SizedBox(width: 20),
-                                      _buildSocialButton(
-                                        icon: Icons.apple,
-                                        color: Colors.white,
-                                      ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 40),
-
-                                  // Register link
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'ليس لديك حساب؟ ',
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.7),
-                                        ),
-                                      ),
-                                      GestureDetector(
-                                        onTap: () {
-                                          // Navigate to register screen
-                                        },
-                                        child: Text(
-                                          'سجل الآن',
-                                          style: TextStyle(
-                                            color: const Color(0xFF3B8A00),
-                                            fontWeight: FontWeight.bold,
-                                            decoration:
-                                                TextDecoration.underline,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ],
                               ),
@@ -590,30 +580,30 @@ class _LoginScreenViewState extends State<_LoginScreenView>
     );
   }
 
-  Widget _buildSocialButton({required IconData icon, required Color color}) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Transform.scale(scale: value, child: child);
-      },
-      child: Container(
-        width: 60,
-        height: 60,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.05),
-          border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {},
-            customBorder: CircleBorder(),
-            child: Icon(icon, color: color, size: 28),
-          ),
-        ),
-      ),
-    );
-  }
+  // Widget _buildSocialButton({required IconData icon, required Color color}) {
+  //   return TweenAnimationBuilder<double>(
+  //     tween: Tween(begin: 0.0, end: 1.0),
+  //     duration: const Duration(milliseconds: 800),
+  //     builder: (context, value, child) {
+  //       return Transform.scale(scale: value, child: child);
+  //     },
+  //     child: Container(
+  //       width: 60,
+  //       height: 60,
+  //       decoration: BoxDecoration(
+  //         shape: BoxShape.circle,
+  //         color: Colors.white.withOpacity(0.05),
+  //         border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+  //       ),
+  //       child: Material(
+  //         color: Colors.transparent,
+  //         child: InkWell(
+  //           onTap: () {},
+  //           customBorder: CircleBorder(),
+  //           child: Icon(icon, color: color, size: 28),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 }

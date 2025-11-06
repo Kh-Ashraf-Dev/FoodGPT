@@ -1,40 +1,55 @@
-import 'dart:math';
-
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-import '../../data/model/suggestions_model.dart';
+import 'package:food_gpt/features/suggestions/data/model/recipe_model.dart';
+import 'package:food_gpt/features/suggestions/domain/repository/suggestions_repository.dart';
 
 part 'suggestions_state.dart';
 
 class SuggestionsCubit extends Cubit<SuggestionsState> {
-  SuggestionsCubit({String? category})
-    : _initialCategory = category,
+  final SuggestionsRepository _suggestionsRepository;
+  final int? _initialCategoryId;
+
+  SuggestionsCubit(this._suggestionsRepository, {int? categoryId})
+    : _initialCategoryId = categoryId,
       super(const SuggestionsInitial()) {
     _loadInitialMeal();
   }
 
-  final String? _initialCategory;
-  final _random = Random();
-  final _categories = const ['فطور', 'غداء', 'عشاء', 'تحلية', 'سناكس', 'صحي'];
-
-  void _loadInitialMeal() {
-    final category =
-        _initialCategory ?? _categories[_random.nextInt(_categories.length)];
-    final meal = SuggestionData.getRandomMeal(category);
-    emit(SuggestionsLoaded(meal, category));
+  Future<void> _loadInitialMeal() async {
+    emit(SuggestionsLoading());
+    final result = await _suggestionsRepository.getRandomSuggestion(
+      categoryId: _initialCategoryId,
+    );
+    result.fold(
+      (failure) => emit(SuggestionsError(failure.message)),
+      (recipe) => emit(
+        SuggestionsLoaded(
+          recipe.toMealMap(),
+          recipe.categoryId.name,
+          recipe: recipe,
+        ),
+      ),
+    );
   }
 
-  void suggestNewMeal(String? excludeMealName) {
+  Future<void> suggestNewMeal(String? excludeMealName) async {
     final currentState = state;
     if (currentState is SuggestionsLoaded) {
-      final category =
-          _initialCategory ?? _categories[_random.nextInt(_categories.length)];
-      final meal = SuggestionData.getRandomMeal(
-        category,
-        excludeMealName: excludeMealName,
+      emit(SuggestionsLoading());
+      final result = await _suggestionsRepository.getRandomSuggestion(
+        categoryId: _initialCategoryId,
       );
-      emit(SuggestionsLoaded(meal, category, isFavorite: false));
+      result.fold(
+        (failure) => emit(SuggestionsError(failure.message)),
+        (recipe) => emit(
+          SuggestionsLoaded(
+            recipe.toMealMap(),
+            recipe.categoryId.name,
+            isFavorite: false,
+            recipe: recipe,
+          ),
+        ),
+      );
     }
   }
 
